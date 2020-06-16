@@ -37,11 +37,15 @@ Java SE 13  *September 2019*, *text-block*, ...
 <br>
 * JEP 363/367     - Farewell CMS&Pack200
 <br>
-* JEP 345         - More local memory!
+* JEP 345         - G1 loves NUMA
+<br>
+* JEP 352         - Mapped Byte Buffers don't fly anymore
 <br>
 * JEP 364/365     - ZGC for everyone
 <br>
-* JEP 349         - Continusly spying over the JDK
+* JEP 370         - Give me access to that Foreign Memory
+<br>
+* JEP 349         - Continusly Streming Events
 <br>
 * JEP 355/368     - Put more lines on that Text
 <br>
@@ -49,11 +53,11 @@ Java SE 13  *September 2019*, *text-block*, ...
 <br>
 * JEP 325/354/361 - Switch me on!
 <br>
-* JEP 305         - There's a pattern here
+* JEP 305         - There's a match with that pattern
 <br>
-* JEP 359         - Guinness!
+* JEP 359         - Rec
 <br>
-* JEP 343/311     - Six-packed
+* JEP 343/311     - Packaging
 <br>
 * Demo time!
 <br>
@@ -85,7 +89,7 @@ Suddendly cool things come and go, just like Sun. And Solaris is not really supp
 Solaris and SPARC port is now deprecated. If we try to compile for Solaris, we get:
 
 ```
-error: The Solaris and SPARC ports are deprecated and may be removed in a future release.
+error: The Solaris and SPARC ports are deprecated and may be removed in a future release. 
 Use --enable-deprecated-ports=yes to suppress this error.
 ```
 
@@ -125,7 +129,7 @@ We are going to miss you all! (almost)
 
 -------------------------------------------------
 
--> ## JEP 345 - More local memory! <-
+-> ## JEP 345 - G1 loves NUMA <-
 
 This is tricky. Non-uniform memory access (NUMA) is a method for configuring multiprocessor cluster
 in a multiprocessing system for sharing memory locally. Such method improves performance and scalability.
@@ -138,6 +142,24 @@ method. Such kind of need is actually present in large systems.
 ```
 
 I didn't test it, so I trust it as-is.
+
+-------------------------------------------------
+
+-> ## JEP 352 - Mapped Byte Buffers don't fly anymore -
+
+The new File API's were introduced in New Input Output package (java.nio) 
+  in Java SE 1.4.0 (please don't count the years).
+
+In order to improve the File API's performance (mostly for large file scenario),
+  In Java SE 7 MappedByteBuffer was now able to map portions of files 
+  in the Java Virtual Memory instead of the heap.
+
+  FileChannel class acts like a client for such kind of buffer, and it asks for 
+  a specific mode of mapping 
+  (private - that is copy-on-write - readonly and read&write).
+
+The purpose of the JEP is to allow MappedByteBuffers to load portions 
+  of file on Non-Volatile Memory as well.
 
 -------------------------------------------------
 
@@ -159,21 +181,155 @@ Both of them are still experimental, but pretty solid.
 
 -------------------------------------------------
 
--> ## JEP 349 - Continusly spying over the JDK <-
+-> ## JEP 349 - Continusly streaming events <-
 
+JRockit Flight Recorder was a tool for monitoring events built by the Java Virtual Machine.
+When Oracle acquired Sun Mic. (sic) rebranded the tool as Java Flight Recorder 
+  and you couldn't use it because you needed a Oracle commercial licence. 
+  Then it was open-sourced for OpenJDK 11.0.0 and rebranded again in JDK Flight Recorder. 
 
+Now since JFR is open-sourced you can freely use it to watch what actually happens on your JVM 
+  during the execution of your application and with Mission Control interact with 
+  shown events. 
+
+With this JEP is now even possible to consume the JVM events with a ad-hoc provided API's. 
+
+Just use `jdk.jfr` in your `module-info` and start to play with `jdk.jfr.consumer`.
 
 -------------------------------------------------
 
 -> ## JEP 355/368 - Put more lines on that Text <-
 
+Once upon a time there was JEP 326 and it was meant to introduce Raw String Literals
+  in Java SE 12. But then the proposal was withdrawn.
+
+An example:
+```
+var rawStringLiteral = \`
+  Call me
+  Ismael
+\`
+```
+
+There were a lot of discussions about it, but it was rejected in favor of Text Blocks 
+  introduced in Java SE 13. Some reasons are releated to the backtick:
+  * backtick is hard to spot
+  * backtick can be confused with single quote \` '
+  * backtick is not present in all keyboard layouts (i.e. IT, try to type it under Windows)
+
+An example of Text Blocks: 
+```
+var textBlock = """
+  Call me 
+  Ismael
+"""
+```
+
+With the last releated JEP we have a second feature preview,
+  this means Text Blocks are going to be feature complete for Java SE 15.
+
 -------------------------------------------------
 
--> ## JEP 358 - Point to that Null <-
+-> ## JEP 358 - Help us NullPointer! <-
+
+Someone say it's a mess, someone else it's a bless, but we all actually think
+  NullPointerException is a hell of exception, the most brutal one. 
+
+And most of all it doesn't help. Let's see an example:
+
+>   // somewhere there's a Person object
+>   var email = person.getDetails().getContactInfo().getEmail();
+
+but then when we try:
+
+```
+$ java Things14.java 
+```
+
+```
+Exception in thread "main" java.lang.NullPointerException
+	at Things14.main(Things14.java:17)
+```
+
+that row 17 is our method chaining, but who actually throwed the exception?
+  Who knows?
+
+Thankfully to JEP 358 we are able to get more information from NullPointerException itself!
+
+```
+$ java -XX:+ShowCodeDetailsInExceptionMessages Things14.java
+```
+
+and we get:
+```
+Exception in thread "main" java.lang.NullPointerException: 
+  Cannot invoke "Things14$ContactInfo.getEmail()" 
+  because the return value of "Things14$Details.getContactInfo()" is null
+  at Things14.main(Things14.java:17)
+```
+
+Oh gosh! I need to fix that ContactInfo then! Thanks NullPointerException!
 
 -------------------------------------------------
 
 -> ## JEP 325/354/361 - Switch me on! <-
+
+Switch expression is now feature complete! Which means you don't need to
+enable it by using `--enable-preview` parameter in order to use it in your
+Java 14 source code!
+
+Switch expression is an improvement to the primitive statement `switch`:
+
+```
+Day asDay(int dayOfWeek) {
+  switch (dayOfWeek) {
+    case 0: return Day.SUNDAY;
+    case 1: return Day.MONDAY;
+    case 2: return Day.TUESDAY;
+    ...
+    default: return null;
+  }
+}
+```
+
+can be now expressed as following: 
+
+```
+Day asDay(int dayOfWeek) {
+  return switch (dayOfWeek) {
+    case 0 -> Day.SUNDAY;
+    case 1 -> Day.MONDAY;
+    ... 
+    default -> null;
+  }
+}
+```
+
+or again: 
+```
+Color change(Color color, ChangeType type) {
+  switch (type) {
+    case ChangeType.Transparent:
+      var transparent = new TransparentColor(
+          color.red(), 
+          color.green(), 
+          color.blue()
+        );
+  }
+}
+```
+
+Why all of this? Why do we need this kind of switch? Well pattern matching.
+It's terribly hard to evolve a platform used by billions of applications, 
+mostly because of backward compatibility. JEP's must be discussed pretty 
+well and it's not possible to put features just for the sake of some 
+buzz-words or hyped languages. 
+
+But... what Java tries to evolve here is its own programming paradigm.
+Object-oriented programming is a nice thing, but in some cases Functional 
+programming may help as well. 
+
+There would be so much to discuss about Switch expression, 
 
 -------------------------------------------------
 
